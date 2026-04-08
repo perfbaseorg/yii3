@@ -1,0 +1,73 @@
+{
+  "name": "perfbase/yii3",
+  "description": "Yii 3 integration for the Perfbase profiling tool.",
+  "keywords": [
+    "perfbase",
+    "yii3",
+    "profiling",
+    "apm",
+    "monitoring"
+  ],
+  "homepage": "https://github.com/perfbaseorg/yii3",
+  "support": {
+    "issues": "https://github.com/perfbaseorg/yii3/issues",
+    "source": "https://github.com/perfbaseorg/yii3"
+  },
+  "type": "library",
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "Ben Poulson",
+      "email": "ben.poulson@perfbase.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1 <8.5",
+    "perfbase/php-sdk": "^1.0",
+    "psr/container": "^1.0 || ^2.0",
+    "psr/http-message": "^1.0 || ^2.0",
+    "psr/http-server-handler": "^1.0",
+    "psr/http-server-middleware": "^1.0",
+    "symfony/event-dispatcher": "^7.0 || ^8.0",
+    "yiisoft/yii-console": "^2.4",
+    "yiisoft/yii-http": "^1.1"
+  },
+  "require-dev": {
+    "mockery/mockery": "^1.6",
+    "nyholm/psr7": "^1.8",
+    "phpstan/phpstan": "^2.1",
+    "phpunit/phpunit": "^10.5 || ^11.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Perfbase\\Yii3\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Perfbase\\Yii3\\Tests\\": "tests/"
+    }
+  },
+  "repositories": [
+    {
+      "type": "path",
+      "url": "../lib-php-sdk",
+      "options": {
+        "symlink": true,
+        "versions": {
+          "perfbase/php-sdk": "1.0.0"
+        }
+      }
+    }
+  ],
+  "scripts": {
+    "lint": "composer run-script phpstan && composer run-script test",
+    "test": "phpunit",
+    "phpstan": "phpstan analyse --memory-limit=2G --debug"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true
+  }
+}

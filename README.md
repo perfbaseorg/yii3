@@ -1,0 +1,241 @@
+# Perfbase for Yii3
+
+`perfbase/yii3` is the Yii 3 adapter for Perfbase.
+
+It keeps the framework layer thin and pushes transport, extension access, and submission behavior into `perfbase/php-sdk`.
+
+## Scope
+
+v1 supports:
+
+- HTTP profiling through PSR-15 middleware
+- Console command profiling through Symfony Console events
+
+v1 does not support:
+
+- Queue or worker profiling
+- Scheduler-specific profiling
+- Custom buffering or retries
+- Yii-specific profiler UI
+
+## Requirements
+
+- PHP `>=8.1 <8.5`
+- `yiisoft/yii-http` `^1.1`
+- `yiisoft/yii-console` `^2.4`
+- `perfbase/php-sdk` `^1.0`
+- The Perfbase PHP extension installed for the target PHP runtime
+
+## Installation
+
+```bash
+composer require perfbase/yii3
+```
+
+Add the config provider:
+
+```php
+return [
+    \Perfbase\Yii3\ConfigProvider::class,
+];
+```
+
+Then override params as needed:
+
+```php
+return [
+    'perfbase' => [
+        'enabled' => true,
+        'api_key' => $_ENV['PERFBASE_API_KEY'] ?? '',
+        'sample_rate' => 0.1,
+        'app_version' => '1.0.0',
+    ],
+];
+```
+
+## Configuration
+
+The config provider exposes this default config under `params['perfbase']`:
+
+```php
+[
+    'enabled' => false,
+    'debug' => false,
+    'log_errors' => true,
+    'api_key' => '',
+    'api_url' => 'https://receiver.perfbase.com',
+    'sample_rate' => 0.1,
+    'timeout' => 10,
+    'proxy' => null,
+    'flags' => \Perfbase\SDK\FeatureFlags::DefaultFlags,
+    'app_version' => '',
+    'include' => [
+        'http' => ['*'],
+        'console' => ['*'],
+    ],
+    'exclude' => [
+        'http' => [],
+        'console' => [],
+    ],
+]
+```
+
+Notes:
+
+- `sample_rate` must be numeric between `0.0` and `1.0`
+- `environment` comes from `YII_ENV`, otherwise `production`
+- `app_version` is application-defined
+
+## HTTP Integration
+
+HTTP profiling is middleware-based through [`PerfbaseHttpMiddleware.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Middleware/PerfbaseHttpMiddleware.php).
+
+Register it in your HTTP middleware pipeline:
+
+```php
+use Perfbase\Yii3\Middleware\PerfbaseHttpMiddleware;
+
+return [
+    PerfbaseHttpMiddleware::class,
+    // other middleware...
+];
+```
+
+Behavior:
+
+- starts profiling before delegating to the next handler
+- captures response status on success
+- captures exception context on failure
+- always stops profiling in `finally`
+
+HTTP attributes include:
+
+- `source=http`
+- `action`
+- `http_method`
+- `http_url`
+- `http_status_code`
+- `user_ip`
+- `user_agent`
+- `hostname`
+- `environment`
+- `app_version`
+- `php_version`
+
+Route metadata behavior:
+
+- route template is resolved from request attributes such as `routePattern`, `route`, or `_route`
+- route name is resolved from `routeName` or `route_name`
+- controller metadata is resolved from `controller` or `action`
+- `http_url` excludes query strings
+
+## Console Integration
+
+Console profiling is wired through [`ConsoleProfilerSubscriber.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/EventSubscriber/ConsoleProfilerSubscriber.php), which subscribes to Symfony Console events used by Yii3 console packages.
+
+Register the subscriber with your event dispatcher:
+
+```php
+use Perfbase\Yii3\EventSubscriber\ConsoleProfilerSubscriber;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+
+$dispatcher = $container->get(EventDispatcher::class);
+$dispatcher->addSubscriber($container->get(ConsoleProfilerSubscriber::class));
+```
+
+Subscribed events:
+
+- `ConsoleEvents::COMMAND`
+- `ConsoleEvents::ERROR`
+- `ConsoleEvents::TERMINATE`
+
+Behavior:
+
+- lifecycles are keyed by the input object identity
+- exceptions are attached on `ERROR`
+- exit codes are attached on `TERMINATE`
+- lifecycle state is cleaned up even when command execution fails
+
+## Filters
+
+Supported contexts:
+
+- `http`
+- `console`
+
+Supported filter styles:
+
+- `*`
+- `.*`
+- glob patterns such as `cache/*`
+- regex patterns such as `/^GET \/api\//`
+
+Example:
+
+```php
+'perfbase' => [
+    'include' => [
+        'http' => ['route/*', '/^GET \\/api\\//'],
+        'console' => ['cache/*', 'migrate'],
+    ],
+    'exclude' => [
+        'http' => ['debug/*'],
+        'console' => ['help'],
+    ],
+],
+```
+
+## Error Handling
+
+The adapter is fail-open:
+
+- SDK init failures degrade to a no-op
+- missing extension degrades to a no-op
+- submit failures do not break request or command execution
+
+Behavior:
+
+- `debug=false`: swallow and optionally log errors
+- `debug=true`: rethrow adapter/runtime errors
+
+## Runtime Architecture
+
+Primary entry points:
+
+- [`ConfigProvider.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/ConfigProvider.php)
+- [`PerfbaseHttpMiddleware.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Middleware/PerfbaseHttpMiddleware.php)
+- [`ConsoleProfilerSubscriber.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/EventSubscriber/ConsoleProfilerSubscriber.php)
+- lifecycle classes in [`src/Lifecycle`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Lifecycle)
+- support helpers in [`src/Support`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Support)
+
+The adapter does not implement its own delivery layer.
+
+## Local Development
+
+Local development uses the sibling SDK checkout:
+
+```json
+{
+  "repositories": [
+    {
+      "type": "path",
+      "url": "../lib-php-sdk"
+    }
+  ]
+}
+```
+
+Verify locally with:
+
+```bash
+composer install
+composer run test
+composer run phpstan
+```
+
+## Limitations
+
+- no queue support in v1
+- no scheduler-specific integration in v1
+- no Yii-specific debug toolbar integration
+- HTTP and console wiring must be registered explicitly in the host application
