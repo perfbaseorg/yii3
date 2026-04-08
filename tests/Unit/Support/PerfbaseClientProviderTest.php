@@ -112,7 +112,7 @@ class PerfbaseClientProviderTest extends TestCase
         $provider->getClient();
 
         self::assertInstanceOf(Config::class, $capturedConfig);
-        self::assertSame('https://receiver.perfbase.com', $capturedConfig->api_url);
+        self::assertSame('https://ingress.perfbase.cloud', $capturedConfig->api_url);
         self::assertSame(0, $capturedConfig->flags);
         self::assertSame(10, $capturedConfig->timeout);
         self::assertNull($capturedConfig->proxy);

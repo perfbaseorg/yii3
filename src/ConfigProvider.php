@@ -73,7 +73,7 @@ class ConfigProvider
             'debug' => false,
             'log_errors' => true,
             'api_key' => '',
-            'api_url' => 'https://receiver.perfbase.com',
+            'api_url' => 'https://ingress.perfbase.cloud',
             'sample_rate' => 0.1,
             'timeout' => 10,
             'proxy' => null,
