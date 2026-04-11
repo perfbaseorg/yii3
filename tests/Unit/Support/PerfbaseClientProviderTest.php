@@ -52,7 +52,7 @@ class PerfbaseClientProviderTest extends TestCase
             ],
             new PerfbaseErrorHandler(false, false),
             static function (Config $config) use (&$capturedProxy) {
-                $capturedProxy = $config->proxy;
+                $capturedProxy = $config->getProxy();
                 return new RecordingPerfbaseClient();
             }
         );
@@ -112,10 +112,10 @@ class PerfbaseClientProviderTest extends TestCase
         $provider->getClient();
 
         self::assertInstanceOf(Config::class, $capturedConfig);
-        self::assertSame('https://ingress.perfbase.cloud', $capturedConfig->api_url);
-        self::assertSame(0, $capturedConfig->flags);
-        self::assertSame(10, $capturedConfig->timeout);
-        self::assertNull($capturedConfig->proxy);
+        self::assertSame('https://ingress.perfbase.cloud', $capturedConfig->getApiUrl());
+        self::assertSame(0, $capturedConfig->getFlags());
+        self::assertSame(10, $capturedConfig->getTimeout());
+        self::assertNull($capturedConfig->getProxy());
     }
 
     public function test_default_factory_can_boot_real_sdk_client(): void
