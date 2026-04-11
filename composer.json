@@ -48,18 +48,6 @@
       "Perfbase\\Yii3\\Tests\\": "tests/"
     }
   },
-  "repositories": [
-    {
-      "type": "path",
-      "url": "../lib-php-sdk",
-      "options": {
-        "symlink": true,
-        "versions": {
-          "perfbase/php-sdk": "1.0.0"
-        }
-      }
-    }
-  ],
   "scripts": {
     "lint": "composer run-script phpstan && composer run-script test",
     "test": "phpunit",

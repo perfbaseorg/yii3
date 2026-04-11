@@ -225,20 +225,7 @@ Primary entry points:
 
 The adapter does not implement its own delivery layer.
 
-## Local Development
-
-Local development uses the sibling SDK checkout:
-
-```json
-{
-  "repositories": [
-    {
-      "type": "path",
-      "url": "../lib-php-sdk"
-    }
-  ]
-}
-```
+## Development
 
 Verify locally with:
 
