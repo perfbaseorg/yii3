@@ -17,11 +17,4 @@ class SpanNaming
     {
         return 'artisan';
     }
-
-    private static function ensureLeadingSlash(string $value): string
-    {
-        $trimmed = ltrim($value, '/');
-
-        return '/' . $trimmed;
-    }
 }

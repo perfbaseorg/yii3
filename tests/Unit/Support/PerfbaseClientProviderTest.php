@@ -120,6 +120,10 @@ class PerfbaseClientProviderTest extends TestCase
 
     public function test_default_factory_can_boot_real_sdk_client(): void
     {
+        if (!Perfbase::isAvailable()) {
+            self::markTestSkipped('Perfbase extension is not available for the real SDK default factory.');
+        }
+
         $provider = new PerfbaseClientProvider(
             [
                 'api_key' => 'test-key',
