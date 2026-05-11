@@ -66,7 +66,7 @@ class ConsoleProfilerSubscriberTest extends TestCase
         $subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
         $subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, 0));
 
-        self::assertSame(['console.unknown'], $client->startedSpans);
+        self::assertSame(['artisan'], $client->startedSpans);
         self::assertSame(1, $client->submitCalls);
     }
 

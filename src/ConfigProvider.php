@@ -75,6 +75,7 @@ class ConfigProvider
             'api_key' => '',
             'api_url' => 'https://ingress.perfbase.cloud',
             'sample_rate' => 0.1,
+            'profile_http_status_codes' => [...range(200, 299), ...range(500, 599)],
             'timeout' => 10,
             'proxy' => null,
             'flags' => FeatureFlags::DefaultFlags,

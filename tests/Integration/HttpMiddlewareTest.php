@@ -37,12 +37,73 @@ class HttpMiddlewareTest extends TestCase
         });
 
         self::assertSame(202, $response->getStatusCode());
-        self::assertSame(['http.GET./articles/{id}'], $client->startedSpans);
+        self::assertSame(['http'], $client->startedSpans);
         self::assertSame('GET /articles/{id}', $client->attributes['action']);
         self::assertSame('https://example.com/articles/42', $client->attributes['http_url']);
         self::assertSame('202', $client->attributes['http_status_code']);
         self::assertSame('user-123', $client->attributes['user_id']);
         self::assertSame(1, $client->submitCalls);
+    }
+
+    public function test_disallowed_status_code_is_not_submitted_by_default(): void
+    {
+        $client = new RecordingPerfbaseClient();
+        $middleware = $this->makeMiddleware($client);
+        $request = (new ServerRequest('GET', 'https://example.com/missing'))
+            ->withAttribute('routePattern', '/missing');
+
+        $response = $middleware->process($request, new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+            {
+                return new Response(404);
+            }
+        });
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertSame('404', $client->attributes['http_status_code']);
+        self::assertSame(0, $client->submitCalls);
+        self::assertSame(1, $client->resetCalls);
+    }
+
+    public function test_server_error_status_code_is_submitted_by_default(): void
+    {
+        $client = new RecordingPerfbaseClient();
+        $middleware = $this->makeMiddleware($client);
+        $request = (new ServerRequest('GET', 'https://example.com/error'))
+            ->withAttribute('routePattern', '/error');
+
+        $response = $middleware->process($request, new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+            {
+                return new Response(503);
+            }
+        });
+
+        self::assertSame(503, $response->getStatusCode());
+        self::assertSame('503', $client->attributes['http_status_code']);
+        self::assertSame(1, $client->submitCalls);
+        self::assertSame(0, $client->resetCalls);
+    }
+
+    public function test_custom_allowed_status_code_is_submitted(): void
+    {
+        $client = new RecordingPerfbaseClient();
+        $middleware = $this->makeMiddleware($client, [
+            'profile_http_status_codes' => [200, 404],
+        ]);
+        $request = (new ServerRequest('GET', 'https://example.com/missing'))
+            ->withAttribute('routePattern', '/missing');
+
+        $response = $middleware->process($request, new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+            {
+                return new Response(404);
+            }
+        });
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertSame(1, $client->submitCalls);
+        self::assertSame(0, $client->resetCalls);
     }
 
     public function test_exception_path_still_cleans_up(): void
@@ -94,6 +155,7 @@ class HttpMiddlewareTest extends TestCase
             array_replace_recursive([
                 'enabled' => true,
                 'sample_rate' => 1.0,
+                'profile_http_status_codes' => [...range(200, 299), ...range(500, 599)],
                 'include' => ['http' => ['*']],
                 'exclude' => ['http' => []],
                 'app_version' => '1.2.3',

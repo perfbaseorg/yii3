@@ -29,7 +29,7 @@ class ConsoleCommandLifecycleTest extends TestCase
         $lifecycle->setException(new \RuntimeException('failed'));
         $lifecycle->stopProfiling();
 
-        self::assertSame(['console.app:sync'], $client->startedSpans);
+        self::assertSame(['artisan'], $client->startedSpans);
         self::assertSame('console', $client->attributes['source']);
         self::assertSame('app:sync', $client->attributes['action']);
         self::assertSame('2', $client->attributes['exit_code']);

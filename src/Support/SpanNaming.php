@@ -10,19 +10,12 @@ class SpanNaming
 {
     public static function forHttp(ServerRequestInterface $request, ?string $routeTemplate, ?string $routeName): string
     {
-        $identifier = $routeTemplate;
-        if ($identifier === null || $identifier === '') {
-            $identifier = $routeName ?: self::ensureLeadingSlash($request->getUri()->getPath());
-        } elseif ($identifier[0] !== '/') {
-            $identifier = self::ensureLeadingSlash($identifier);
-        }
-
-        return sprintf('http.%s.%s', $request->getMethod(), $identifier);
+        return 'http';
     }
 
     public static function forConsole(string $command): string
     {
-        return sprintf('console.%s', $command);
+        return 'artisan';
     }
 
     private static function ensureLeadingSlash(string $value): string

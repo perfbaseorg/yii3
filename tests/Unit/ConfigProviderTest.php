@@ -20,6 +20,7 @@ class ConfigProviderTest extends TestCase
 
         self::assertFalse($defaults['enabled']);
         self::assertSame(0.1, $defaults['sample_rate']);
+        self::assertSame([...range(200, 299), ...range(500, 599)], $defaults['profile_http_status_codes']);
         self::assertSame(['*'], $defaults['include']['http']);
         self::assertSame([], $defaults['exclude']['console']);
     }

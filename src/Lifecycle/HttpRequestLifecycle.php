@@ -14,6 +14,8 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class HttpRequestLifecycle extends AbstractProfiler
 {
+    private ?int $responseStatusCode = null;
+
     public function __construct(
         private ServerRequestInterface $request,
         private ?string $routeTemplate,
@@ -37,6 +39,7 @@ class HttpRequestLifecycle extends AbstractProfiler
 
     public function setResponseStatusCode(int $statusCode): void
     {
+        $this->responseStatusCode = $statusCode;
         $this->setAttribute('http_status_code', (string) $statusCode);
     }
 
@@ -72,6 +75,15 @@ class HttpRequestLifecycle extends AbstractProfiler
         if ($userIdentifier !== null && $userIdentifier !== '') {
             $this->setAttribute('user_id', $userIdentifier);
         }
+    }
+
+    protected function shouldSubmitTrace(): bool
+    {
+        if ($this->responseStatusCode === null) {
+            return true;
+        }
+
+        return in_array($this->responseStatusCode, $this->profileHttpStatusCodes(), true);
     }
 
     /**
@@ -158,5 +170,31 @@ class HttpRequestLifecycle extends AbstractProfiler
         return array_values(array_filter($filters, static function ($filter): bool {
             return is_string($filter) && $filter !== '';
         }));
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function profileHttpStatusCodes(): array
+    {
+        $statusCodes = $this->config['profile_http_status_codes'] ?? [...range(200, 299), ...range(500, 599)];
+        if (!is_array($statusCodes)) {
+            return [...range(200, 299), ...range(500, 599)];
+        }
+
+        $normalized = [];
+
+        foreach ($statusCodes as $statusCode) {
+            if (is_int($statusCode)) {
+                $normalized[] = $statusCode;
+                continue;
+            }
+
+            if (is_string($statusCode) && ctype_digit($statusCode)) {
+                $normalized[] = (int) $statusCode;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 }

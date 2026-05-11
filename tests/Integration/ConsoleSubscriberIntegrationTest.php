@@ -33,7 +33,7 @@ class ConsoleSubscriberIntegrationTest extends TestCase
         $dispatcher->dispatch(new ConsoleCommandEvent($command, $input, $output), ConsoleEvents::COMMAND);
         $dispatcher->dispatch(new ConsoleTerminateEvent($command, $input, $output, 0), ConsoleEvents::TERMINATE);
 
-        self::assertSame(['console.app:sync'], $client->startedSpans);
+        self::assertSame(['artisan'], $client->startedSpans);
         self::assertSame('0', $client->attributes['exit_code']);
         self::assertSame(1, $client->submitCalls);
     }

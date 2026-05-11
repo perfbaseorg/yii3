@@ -80,6 +80,7 @@ The config provider exposes this default config under `params['perfbase']`:
     'api_key' => '',
     'api_url' => 'https://ingress.perfbase.cloud',
     'sample_rate' => 0.1,
+    'profile_http_status_codes' => [...range(200, 299), ...range(500, 599)],
     'timeout' => 10,
     'proxy' => null,
     'flags' => \Perfbase\SDK\FeatureFlags::DefaultFlags,
@@ -98,6 +99,7 @@ The config provider exposes this default config under `params['perfbase']`:
 Notes:
 
 - `sample_rate` must be numeric between `0.0` and `1.0`
+- `profile_http_status_codes` defaults to `[...range(200, 299), ...range(500, 599)]`. Add codes such as `404` if you want to keep them, or set it to `[]` to disable HTTP trace submission entirely.
 - `environment` comes from `YII_ENV`, otherwise `production`
 - `app_version` is application-defined
 
@@ -121,6 +123,7 @@ Behavior:
 - starts profiling before delegating to the next handler
 - captures response status on success
 - captures exception context on failure
+- HTTP traces are only submitted when the response status code is in `profile_http_status_codes`
 - always stops profiling in `finally`
 
 HTTP attributes include:
