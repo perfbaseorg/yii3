@@ -34,6 +34,6 @@ class SpanNamingTest extends TestCase
 
     public function test_console_span_name_is_stable(): void
     {
-        self::assertSame('artisan', SpanNaming::forConsole('app:sync'));
+        self::assertSame('cli', SpanNaming::forConsole('app:sync'));
     }
 }

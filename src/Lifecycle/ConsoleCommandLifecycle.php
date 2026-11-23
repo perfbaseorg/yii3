@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Perfbase\Yii3\Lifecycle;
 
+use Perfbase\Yii3\ConfigProvider;
 use Perfbase\Yii3\Profiling\AbstractProfiler;
+use Perfbase\Yii3\Support\ConfigValue;
 use Perfbase\Yii3\Support\FilterMatcher;
 use Perfbase\Yii3\Support\PerfbaseClientProvider;
 use Perfbase\Yii3\Support\PerfbaseErrorHandler;
@@ -32,14 +34,14 @@ class ConsoleCommandLifecycle extends AbstractProfiler
 
     protected function shouldProfile(): bool
     {
-        if (!(bool) ($this->config['enabled'] ?? false)) {
+        if (!ConfigValue::bool($this->config['enabled'] ?? null, false)) {
             return false;
         }
 
         return FilterMatcher::passesFilters(
             [$this->command],
             $this->normalizeFilters($this->config['include']['console'] ?? ['*']),
-            $this->normalizeFilters($this->config['exclude']['console'] ?? [])
+            $this->normalizeFilters($this->config['exclude']['console'] ?? ConfigProvider::LONG_RUNNING_COMMANDS)
         );
     }
 

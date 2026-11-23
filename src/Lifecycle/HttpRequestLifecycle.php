@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Perfbase\Yii3\Lifecycle;
 
 use Perfbase\SDK\Utils\EnvironmentUtils;
+use Perfbase\SDK\Utils\UrlSanitizer;
 use Perfbase\Yii3\Profiling\AbstractProfiler;
+use Perfbase\Yii3\Support\ConfigValue;
 use Perfbase\Yii3\Support\FilterMatcher;
 use Perfbase\Yii3\Support\PerfbaseClientProvider;
 use Perfbase\Yii3\Support\PerfbaseErrorHandler;
@@ -45,7 +47,7 @@ class HttpRequestLifecycle extends AbstractProfiler
 
     protected function shouldProfile(): bool
     {
-        if (!(bool) ($this->config['enabled'] ?? false)) {
+        if (!ConfigValue::bool($this->config['enabled'] ?? null, false)) {
             return false;
         }
 
@@ -66,9 +68,9 @@ class HttpRequestLifecycle extends AbstractProfiler
             'source' => 'http',
             'action' => sprintf('%s %s', $this->request->getMethod(), $routeTarget),
             'http_method' => $this->request->getMethod(),
-            'http_url' => $this->buildUrlWithoutQuery(),
-            'user_ip' => (string) (EnvironmentUtils::getUserIp() ?? ''),
-            'user_agent' => (string) (EnvironmentUtils::getUserUserAgent() ?? ''),
+            'http_url' => $this->buildHttpUrl(),
+            'user_ip' => $this->resolveUserIp(),
+            'user_agent' => $this->resolveUserAgent(),
         ]);
 
         $userIdentifier = $this->resolveUserIdentifier();
@@ -120,15 +122,65 @@ class HttpRequestLifecycle extends AbstractProfiler
         return $path === '' ? '/' : $path;
     }
 
-    private function buildUrlWithoutQuery(): string
+    /**
+     * Updates the grouping action once the router has matched (the route is
+     * usually only known after the inner handler ran).
+     */
+    public function setRouteTemplate(string $routeTemplate): void
+    {
+        if ($routeTemplate === '') {
+            return;
+        }
+
+        $this->routeTemplate = str_starts_with($routeTemplate, '/') ? $routeTemplate : '/' . $routeTemplate;
+        $this->setAttribute('action', sprintf('%s %s', $this->request->getMethod(), $this->routeTemplate));
+    }
+
+    /**
+     * Full request URL including the query string. Credential-looking query
+     * values are redacted by the SDK sanitizer; `action` stays query-free.
+     */
+    private function buildHttpUrl(): string
     {
         $uri = $this->request->getUri();
         $authority = $uri->getAuthority();
         $scheme = $uri->getScheme();
 
-        $base = $authority === '' ? '' : $scheme . '://' . $authority;
+        $url = $authority === '' ? '' : $scheme . '://' . $authority;
+        $url .= $uri->getPath() === '' ? '/' : $uri->getPath();
 
-        return $base . ($uri->getPath() === '' ? '/' : $uri->getPath());
+        $query = $uri->getQuery();
+        if ($query !== '') {
+            $url .= '?' . $query;
+        }
+
+        return UrlSanitizer::sanitize($url);
+    }
+
+    /**
+     * Prefers $_SERVER (which honours proxy headers), falling back to the PSR-7
+     * server params for workers (RoadRunner, Swoole) where $_SERVER is not per request.
+     */
+    private function resolveUserIp(): string
+    {
+        $ip = EnvironmentUtils::getUserIp();
+        if (is_string($ip) && $ip !== '') {
+            return $ip;
+        }
+
+        $remoteAddress = $this->request->getServerParams()['REMOTE_ADDR'] ?? null;
+
+        return is_string($remoteAddress) ? $remoteAddress : '';
+    }
+
+    private function resolveUserAgent(): string
+    {
+        $userAgent = $this->request->getHeaderLine('User-Agent');
+        if ($userAgent !== '') {
+            return $userAgent;
+        }
+
+        return (string) (EnvironmentUtils::getUserUserAgent() ?? '');
     }
 
     private function resolveUserIdentifier(): ?string

@@ -15,6 +15,6 @@ class SpanNaming
 
     public static function forConsole(string $command): string
     {
-        return 'artisan';
+        return 'cli';
     }
 }

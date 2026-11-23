@@ -13,7 +13,7 @@
   <a href="https://packagist.org/packages/perfbase/yii3"><img src="https://img.shields.io/packagist/v/perfbase/yii3" alt="Packagist Version"></a>
   <a href="https://github.com/perfbaseorg/yii3/blob/main/LICENSE.txt"><img src="https://img.shields.io/packagist/l/perfbase/yii3" alt="License"></a>
   <a href="https://github.com/perfbaseorg/yii3/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/perfbaseorg/yii3/ci.yml?branch=main" alt="CI"></a>
-  <img src="https://img.shields.io/badge/php-8.1%2B-blue" alt="PHP Version">
+  <img src="https://img.shields.io/badge/php-8.2%2B-blue" alt="PHP Version">
   <img src="https://img.shields.io/badge/yii-3.x-blue" alt="Yii Version">
 </p>
 
@@ -35,10 +35,10 @@ v1 does not support:
 
 ## Requirements
 
-- PHP `>=8.1 <8.5`
+- PHP `>=8.2 <8.7` (Yii packages currently declare support up to PHP 8.5)
 - `yiisoft/yii-http` `^1.1`
 - `yiisoft/yii-console` `^2.4`
-- `perfbase/php-sdk` `^1.0`
+- `perfbase/php-sdk` `^1.9`
 - The Perfbase PHP extension installed for the target PHP runtime
 
 ## Installation
@@ -47,15 +47,8 @@ v1 does not support:
 composer require perfbase/yii3
 ```
 
-Add the config provider:
-
-```php
-return [
-    \Perfbase\Yii3\ConfigProvider::class,
-];
-```
-
-Then override params as needed:
+The package ships Yii config-plugin files that are discovered automatically by `yiisoft/config`.
+Override `params['perfbase']` in your application config as needed, for example in `config/common/params.php`:
 
 ```php
 return [
@@ -70,7 +63,7 @@ return [
 
 ## Configuration
 
-The config provider exposes this default config under `params['perfbase']`:
+These are the effective defaults for `params['perfbase']`:
 
 ```php
 [
@@ -91,23 +84,27 @@ The config provider exposes this default config under `params['perfbase']`:
     ],
     'exclude' => [
         'http' => [],
-        'console' => [],
+        'console' => ['serve', 'queue:listen', 'queue:listen-all', 'queue:run', 'queue:consume'],
     ],
 ]
 ```
 
+`yiisoft/config` merges list arrays by appending, so a list shipped in package params could never be narrowed by your application. The package params therefore leave out `include`, `exclude` and `profile_http_status_codes`; the values above apply in code when you do not set them, and whatever you set replaces them.
+
 Notes:
 
 - `sample_rate` must be numeric between `0.0` and `1.0`
+- values read from environment variables may be strings: `enabled`, `debug` and `log_errors` accept `true`/`false`/`1`/`0`/`yes`/`no`/`on`/`off`; `flags` and `timeout` accept digit strings; blank `api_url`, `proxy`, `flags` or `timeout` fall back to the defaults
+- `flags` is the SDK `FeatureFlags` bitmask. The default `FeatureFlags::DefaultFlags` enables every feature except `TrackCpuTime` and `TrackMemoryAllocation`. `0` enables every feature except the opt-in flags `UsePreciseClock` and `TrackCpuTime`; a mask containing only opt-in flags adds them to that set, and any mask containing a regular flag is used exactly
 - `profile_http_status_codes` defaults to `[...range(200, 299), ...range(500, 599)]`. Add codes such as `404` if you want to keep them, or set it to `[]` to disable HTTP trace submission entirely.
 - `environment` comes from `YII_ENV`, otherwise `production`
 - `app_version` is application-defined
 
 ## HTTP Integration
 
-HTTP profiling is middleware-based through [`PerfbaseHttpMiddleware.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Middleware/PerfbaseHttpMiddleware.php).
+HTTP profiling is middleware-based through [`PerfbaseHttpMiddleware.php`](src/Middleware/PerfbaseHttpMiddleware.php).
 
-Register it in your HTTP middleware pipeline:
+The package registers the middleware service through Yii config-plugin. Add it to your HTTP middleware pipeline where you want profiling to wrap application handling:
 
 ```php
 use Perfbase\Yii3\Middleware\PerfbaseHttpMiddleware;
@@ -135,6 +132,7 @@ HTTP attributes include:
 - `http_status_code`
 - `user_ip`
 - `user_agent`
+- `user_id` when available
 - `hostname`
 - `environment`
 - `app_version`
@@ -142,24 +140,20 @@ HTTP attributes include:
 
 Route metadata behavior:
 
-- route template is resolved from request attributes such as `routePattern`, `route`, or `_route`
+- when `yiisoft/router` is installed, the matched pattern from `Yiisoft\Router\CurrentRoute` becomes the action (`GET /articles/{id}`). The router fills it while the inner handler runs, so it is read after the handler returns; include/exclude filters, which run before the handler, see the request path and any route attributes below
+- route template is otherwise resolved from request attributes such as `routePattern`, `route`, or `_route`
 - route name is resolved from `routeName` or `route_name`
 - controller metadata is resolved from `controller` or `action`
-- `http_url` excludes query strings
+- without route metadata the action falls back to the request path
+- `user_id` is read from the `userId` / `user_id` attributes, or from `getId()` / `getUserIdentifier()` on an `identity` / `user` attribute
+- `user_agent` and `user_ip` fall back to the PSR-7 request for worker runtimes where `$_SERVER` is not per request
+- `http_url` is the full request URL including the query string, passed through the SDK `UrlSanitizer`: values of credential-looking parameters (`token`, `password`, `api_key`, `signature`, `nonce`, session IDs, `email`, and similar) become `REDACTED`, and user info and fragments are dropped. `action` never contains the query string
 
 ## Console Integration
 
-Console profiling is wired through [`ConsoleProfilerSubscriber.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/EventSubscriber/ConsoleProfilerSubscriber.php), which subscribes to Symfony Console events used by Yii3 console packages.
+Console profiling is wired through [`ConsoleProfilerSubscriber.php`](src/EventSubscriber/ConsoleProfilerSubscriber.php), which subscribes to Symfony Console events used by Yii3 console packages.
 
-Register the subscriber with your event dispatcher:
-
-```php
-use Perfbase\Yii3\EventSubscriber\ConsoleProfilerSubscriber;
-use Symfony\Component\EventDispatcher\EventDispatcher;
-
-$dispatcher = $container->get(EventDispatcher::class);
-$dispatcher->addSubscriber($container->get(ConsoleProfilerSubscriber::class));
-```
+The package registers console event listeners through Yii config-plugin, so no manual event-dispatcher wiring is required in standard Yii3 apps.
 
 Subscribed events:
 
@@ -169,7 +163,9 @@ Subscribed events:
 
 Behavior:
 
+- the span is named `cli` and the action is the command name. Earlier releases named this span `artisan`.
 - lifecycles are keyed by the input object identity
+- long-running commands are excluded by default: `serve` (yiisoft/yii-console) and the yiisoft/queue workers (`queue:listen`, `queue:listen-all`, `queue:run`, `queue:consume`). A trace started for these would only end when the process exits. If you set `exclude.console`, include these entries again
 - exceptions are attached on `ERROR`
 - exit codes are attached on `TERMINATE`
 - lifecycle state is cleaned up even when command execution fails
@@ -209,7 +205,8 @@ The adapter is fail-open:
 
 - SDK init failures degrade to a no-op
 - missing extension degrades to a no-op
-- submit failures do not break request or command execution
+- disabled or filtered requests and commands never build the SDK client, so a disabled install without an API key logs nothing
+- submit failures, including an exception thrown by the SDK's `submitTrace()`, do not break request or command execution; the application's response is returned and its own exceptions are rethrown
 
 Behavior:
 
@@ -220,11 +217,14 @@ Behavior:
 
 Primary entry points:
 
-- [`ConfigProvider.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/ConfigProvider.php)
-- [`PerfbaseHttpMiddleware.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Middleware/PerfbaseHttpMiddleware.php)
-- [`ConsoleProfilerSubscriber.php`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/EventSubscriber/ConsoleProfilerSubscriber.php)
-- lifecycle classes in [`src/Lifecycle`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Lifecycle)
-- support helpers in [`src/Support`](/Users/ben/Projects/Perfbase/environment/projects/lib-yii3/src/Support)
+- package config files in `config/`
+- [`ConfigProvider.php`](src/ConfigProvider.php)
+- [`PerfbaseHttpMiddleware.php`](src/Middleware/PerfbaseHttpMiddleware.php)
+- [`ConsoleProfilerSubscriber.php`](src/EventSubscriber/ConsoleProfilerSubscriber.php)
+- lifecycle classes in [`src/Lifecycle`](src/Lifecycle)
+- support helpers in [`src/Support`](src/Support)
+
+`ConfigProvider` owns default configuration only. Yii integration wiring is delivered through `config/params.php`, `config/di.php`, `config/di-web.php`, and `config/events-console.php`.
 
 The adapter does not implement its own delivery layer.
 
@@ -243,7 +243,7 @@ composer run phpstan
 - No queue support in v1
 - No scheduler-specific integration in v1
 - No Yii-specific debug toolbar integration
-- HTTP and console wiring must be registered explicitly in the host application
+- HTTP middleware must be added to the host application's middleware pipeline
 
 ## Documentation
 

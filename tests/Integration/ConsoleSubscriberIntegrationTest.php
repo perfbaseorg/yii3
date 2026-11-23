@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Perfbase\Yii3\Tests\Integration;
 
+use Perfbase\Yii3\ConfigProvider;
 use Perfbase\Yii3\EventSubscriber\ConsoleProfilerSubscriber;
 use Perfbase\Yii3\Support\PerfbaseClientProvider;
 use Perfbase\Yii3\Support\PerfbaseErrorHandler;
@@ -33,7 +34,7 @@ class ConsoleSubscriberIntegrationTest extends TestCase
         $dispatcher->dispatch(new ConsoleCommandEvent($command, $input, $output), ConsoleEvents::COMMAND);
         $dispatcher->dispatch(new ConsoleTerminateEvent($command, $input, $output, 0), ConsoleEvents::TERMINATE);
 
-        self::assertSame(['artisan'], $client->startedSpans);
+        self::assertSame(['cli'], $client->startedSpans);
         self::assertSame('0', $client->attributes['exit_code']);
         self::assertSame(1, $client->submitCalls);
     }
@@ -79,10 +80,53 @@ class ConsoleSubscriberIntegrationTest extends TestCase
         self::assertSame(2, $client->submitCalls);
     }
 
-    private function makeSubscriber(RecordingPerfbaseClient $client): ConsoleProfilerSubscriber
+    public function test_long_running_commands_are_excluded_by_default(): void
+    {
+        $client = new RecordingPerfbaseClient();
+        $dispatcher = new EventDispatcher();
+        // What the app receives from the config-plugin params group (no list values).
+        $config = array_replace(ConfigProvider::params(), ['enabled' => 'true', 'sample_rate' => '1.0']);
+        $dispatcher->addSubscriber($this->makeSubscriber($client, $config));
+
+        foreach (['serve', 'queue:listen', 'queue:run', 'queue:consume', 'app:sync'] as $name) {
+            $command = new Command($name);
+            $input = new ArrayInput([]);
+            $output = new BufferedOutput();
+            $dispatcher->dispatch(new ConsoleCommandEvent($command, $input, $output), ConsoleEvents::COMMAND);
+            $dispatcher->dispatch(new ConsoleTerminateEvent($command, $input, $output, 0), ConsoleEvents::TERMINATE);
+        }
+
+        self::assertSame(['cli'], $client->startedSpans);
+        self::assertSame('app:sync', $client->attributes['action']);
+        self::assertSame(1, $client->submitCalls);
+    }
+
+    public function test_string_false_enabled_flag_disables_profiling(): void
+    {
+        $client = new RecordingPerfbaseClient();
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addSubscriber($this->makeSubscriber($client, [
+            'enabled' => 'false',
+            'sample_rate' => 1.0,
+        ]));
+
+        $command = new Command('app:sync');
+        $input = new ArrayInput([]);
+        $output = new BufferedOutput();
+        $dispatcher->dispatch(new ConsoleCommandEvent($command, $input, $output), ConsoleEvents::COMMAND);
+        $dispatcher->dispatch(new ConsoleTerminateEvent($command, $input, $output, 0), ConsoleEvents::TERMINATE);
+
+        self::assertSame([], $client->startedSpans);
+        self::assertSame(0, $client->submitCalls);
+    }
+
+    /**
+     * @param array<string, mixed>|null $config
+     */
+    private function makeSubscriber(RecordingPerfbaseClient $client, ?array $config = null): ConsoleProfilerSubscriber
     {
         return new ConsoleProfilerSubscriber(
-            [
+            $config ?? [
                 'enabled' => true,
                 'sample_rate' => 1.0,
                 'include' => ['console' => ['*']],

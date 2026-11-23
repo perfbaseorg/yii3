@@ -5,65 +5,42 @@ declare(strict_types=1);
 namespace Perfbase\Yii3;
 
 use Perfbase\SDK\FeatureFlags;
-use Perfbase\Yii3\EventSubscriber\ConsoleProfilerSubscriber;
-use Perfbase\Yii3\Middleware\PerfbaseHttpMiddleware;
-use Perfbase\Yii3\Support\PerfbaseClientProvider;
-use Perfbase\Yii3\Support\PerfbaseErrorHandler;
-use Psr\Container\ContainerInterface;
 
 class ConfigProvider
 {
     /**
+     * `serve` (yiisoft/yii-console) and the yiisoft/queue workers.
+     */
+    public const LONG_RUNNING_COMMANDS = [
+        'serve',
+        'queue:listen',
+        'queue:listen-all',
+        'queue:run',
+        'queue:consume',
+    ];
+
+    /**
+     * Defaults shipped through the `params` config-plugin group.
+     *
+     * yiisoft/config merges integer-keyed (list) arrays by appending, so list
+     * defaults here could never be narrowed by the application: overriding
+     * `include.http` with `['/api/*']` would yield `['*', '/api/*']`. List-valued
+     * options are therefore left out and resolved in code when absent
+     * (see defaults() for their effective values).
+     *
      * @return array<string, mixed>
      */
-    public function __invoke(): array
+    public static function params(): array
     {
-        return [
-            'params' => [
-                'perfbase' => self::defaults(),
-            ],
-            'definitions' => [
-                PerfbaseErrorHandler::class => static function (ContainerInterface $container): PerfbaseErrorHandler {
-                    $config = self::readConfig($container);
+        $params = self::defaults();
+        unset($params['include'], $params['exclude'], $params['profile_http_status_codes']);
 
-                    return new PerfbaseErrorHandler(
-                        (bool) ($config['debug'] ?? false),
-                        (bool) ($config['log_errors'] ?? true)
-                    );
-                },
-                PerfbaseClientProvider::class => static function (ContainerInterface $container): PerfbaseClientProvider {
-                    return new PerfbaseClientProvider(
-                        self::readConfig($container),
-                        $container->get(PerfbaseErrorHandler::class)
-                    );
-                },
-                PerfbaseHttpMiddleware::class => static function (ContainerInterface $container): PerfbaseHttpMiddleware {
-                    $config = self::readConfig($container);
-
-                    return new PerfbaseHttpMiddleware(
-                        $config,
-                        $container->get(PerfbaseClientProvider::class),
-                        $container->get(PerfbaseErrorHandler::class),
-                        self::environment(),
-                        (string) ($config['app_version'] ?? '')
-                    );
-                },
-                ConsoleProfilerSubscriber::class => static function (ContainerInterface $container): ConsoleProfilerSubscriber {
-                    $config = self::readConfig($container);
-
-                    return new ConsoleProfilerSubscriber(
-                        $config,
-                        self::environment(),
-                        (string) ($config['app_version'] ?? ''),
-                        $container->get(PerfbaseClientProvider::class),
-                        $container->get(PerfbaseErrorHandler::class)
-                    );
-                },
-            ],
-        ];
+        return $params;
     }
 
     /**
+     * Effective defaults, including the list-valued options applied in code.
+     *
      * @return array<string, mixed>
      */
     public static function defaults(): array
@@ -86,33 +63,10 @@ class ConfigProvider
             ],
             'exclude' => [
                 'http' => [],
-                'console' => [],
+                // Long-running commands: a trace started for the server or queue
+                // worker process would only end when the process exits.
+                'console' => self::LONG_RUNNING_COMMANDS,
             ],
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function readConfig(ContainerInterface $container): array
-    {
-        $params = $container->has('params') ? $container->get('params') : [];
-        if (!is_array($params)) {
-            return self::defaults();
-        }
-
-        $config = $params['perfbase'] ?? [];
-        if (!is_array($config)) {
-            return self::defaults();
-        }
-
-        return array_replace_recursive(self::defaults(), $config);
-    }
-
-    private static function environment(): string
-    {
-        $value = $_ENV['YII_ENV'] ?? $_SERVER['YII_ENV'] ?? getenv('YII_ENV');
-
-        return is_string($value) && $value !== '' ? $value : 'production';
     }
 }

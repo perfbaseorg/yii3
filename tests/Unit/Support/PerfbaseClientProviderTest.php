@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Perfbase\Yii3\Tests\Unit\Support;
 
 use Perfbase\SDK\Config;
+use Perfbase\SDK\FeatureFlags;
 use Perfbase\SDK\Perfbase;
 use Perfbase\Yii3\Support\PerfbaseClientProvider;
 use Perfbase\Yii3\Support\PerfbaseErrorHandler;
@@ -113,9 +114,58 @@ class PerfbaseClientProviderTest extends TestCase
 
         self::assertInstanceOf(Config::class, $capturedConfig);
         self::assertSame('https://ingress.perfbase.cloud', $capturedConfig->getApiUrl());
-        self::assertSame(0, $capturedConfig->getFlags());
+        self::assertSame(FeatureFlags::DefaultFlags, $capturedConfig->getFlags());
         self::assertSame(10, $capturedConfig->getTimeout());
         self::assertNull($capturedConfig->getProxy());
+    }
+
+    public function test_string_config_values_from_env_are_normalised(): void
+    {
+        $capturedConfig = null;
+        $provider = new PerfbaseClientProvider(
+            [
+                'api_key' => ' test-key ',
+                'api_url' => '',
+                'flags' => (string) FeatureFlags::TrackPdo,
+                'timeout' => '12',
+                'proxy' => '',
+            ],
+            new PerfbaseErrorHandler(true, true),
+            static function (Config $config) use (&$capturedConfig) {
+                $capturedConfig = $config;
+                return new RecordingPerfbaseClient();
+            }
+        );
+
+        self::assertNotNull($provider->getClient());
+        self::assertInstanceOf(Config::class, $capturedConfig);
+        self::assertSame('test-key', $capturedConfig->getApiKey());
+        self::assertSame('https://ingress.perfbase.cloud', $capturedConfig->getApiUrl());
+        self::assertSame(FeatureFlags::TrackPdo, $capturedConfig->getFlags());
+        self::assertSame(12, $capturedConfig->getTimeout());
+        self::assertNull($capturedConfig->getProxy());
+    }
+
+    public function test_blank_flags_and_timeout_fall_back_to_defaults(): void
+    {
+        $capturedConfig = null;
+        $provider = new PerfbaseClientProvider(
+            [
+                'api_key' => 'test-key',
+                'flags' => '',
+                'timeout' => '',
+            ],
+            new PerfbaseErrorHandler(true, true),
+            static function (Config $config) use (&$capturedConfig) {
+                $capturedConfig = $config;
+                return new RecordingPerfbaseClient();
+            }
+        );
+
+        self::assertNotNull($provider->getClient());
+        self::assertInstanceOf(Config::class, $capturedConfig);
+        self::assertSame(FeatureFlags::DefaultFlags, $capturedConfig->getFlags());
+        self::assertSame(10, $capturedConfig->getTimeout());
     }
 
     public function test_default_factory_can_boot_real_sdk_client(): void

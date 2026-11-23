@@ -42,7 +42,7 @@ class HttpRequestLifecycleTest extends TestCase
         self::assertSame(['http'], $client->stoppedSpans);
         self::assertSame(1, $client->submitCalls);
         self::assertSame('GET /articles/{id}', $client->attributes['action']);
-        self::assertSame('https://example.com/articles/42', $client->attributes['http_url']);
+        self::assertSame('https://example.com/articles/42?token=REDACTED', $client->attributes['http_url']);
         self::assertSame('201', $client->attributes['http_status_code']);
         self::assertSame('user-123', $client->attributes['user_id']);
         self::assertSame('http', $client->attributes['source']);
@@ -269,7 +269,7 @@ class HttpRequestLifecycleTest extends TestCase
         $lifecycle->stopProfiling();
 
         self::assertSame(['http'], $client->startedSpans);
-        self::assertSame('/health', $client->attributes['http_url']);
+        self::assertSame('/health?token=REDACTED', $client->attributes['http_url']);
     }
 
     private function makeProvider(RecordingPerfbaseClient $client): PerfbaseClientProvider

@@ -16,13 +16,17 @@ class PerfbaseHttpMiddleware implements MiddlewareInterface
 {
     /**
      * @param array<string, mixed> $config
+     * @param object|null $currentRoute `Yiisoft\Router\CurrentRoute` when yiisoft/router is installed.
+     *                                  The router fills it while the inner handler runs, so the matched
+     *                                  pattern is read after the handler returns.
      */
     public function __construct(
         private array $config,
         private PerfbaseClientProvider $clientProvider,
         private PerfbaseErrorHandler $errorHandler,
         private string $environment = 'production',
-        private string $appVersion = ''
+        private string $appVersion = '',
+        private ?object $currentRoute = null
     ) {
     }
 
@@ -51,7 +55,28 @@ class PerfbaseHttpMiddleware implements MiddlewareInterface
             $lifecycle->setException($throwable);
             throw $throwable;
         } finally {
+            $this->applyMatchedRoute($lifecycle);
             $lifecycle->stopProfiling();
+        }
+    }
+
+    private function applyMatchedRoute(HttpRequestLifecycle $lifecycle): void
+    {
+        if ($this->currentRoute === null || !method_exists($this->currentRoute, 'getPattern')) {
+            return;
+        }
+
+        try {
+            $pattern = $this->currentRoute->getPattern();
+            if (is_string($pattern) && $pattern !== '') {
+                $lifecycle->setRouteTemplate($pattern);
+            }
+        } catch (\Throwable $throwable) {
+            try {
+                $this->errorHandler->handle($throwable, 'http_route');
+            } catch (\Throwable) {
+                // Never replace the application's response or exception.
+            }
         }
     }
 

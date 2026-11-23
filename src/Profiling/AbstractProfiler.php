@@ -40,12 +40,14 @@ abstract class AbstractProfiler
         }
 
         try {
-            $this->client = $this->clientProvider->getClient();
-            if ($this->client === null) {
+            // Decide before touching the SDK: a disabled or filtered context must
+            // not build a client (which fails and logs when no API key is set).
+            if (!$this->passesSampleRateCheck() || !$this->shouldProfile()) {
                 return;
             }
 
-            if (!$this->passesSampleRateCheck() || !$this->shouldProfile()) {
+            $this->client = $this->clientProvider->getClient();
+            if ($this->client === null) {
                 return;
             }
 

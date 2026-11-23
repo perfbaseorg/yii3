@@ -11,10 +11,18 @@ jobs:
     name: PHPStan and PHPUnit on PHP ${{ matrix.php-version }}
     runs-on: ubuntu-latest
 
+    # Yii packages currently declare PHP "8.x - 8.5", so the 8.6 lane installs with
+    # --ignore-platform-req=php and is allowed to fail until upstream widens support.
+    continue-on-error: ${{ matrix.experimental }}
+
     strategy:
       fail-fast: false
       matrix:
-        php-version: ["8.2", "8.3", "8.4"]
+        php-version: ["8.2", "8.3", "8.4", "8.5"]
+        experimental: [false]
+        include:
+          - php-version: "8.6"
+            experimental: true
 
     steps:
       - name: Checkout yii3
@@ -33,7 +41,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: yii3
-        run: composer install --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress ${{ matrix.experimental && '--ignore-platform-req=php' || '' }}
 
       - name: Run PHPStan
         working-directory: yii3

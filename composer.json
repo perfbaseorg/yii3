@@ -22,8 +22,8 @@
     }
   ],
   "require": {
-    "php": ">=8.2 <8.5",
-    "perfbase/php-sdk": "^1.4",
+    "php": ">=8.2 <8.7",
+    "perfbase/php-sdk": "^1.9",
     "psr/container": "^1.0 || ^2.0",
     "psr/http-message": "^1.0 || ^2.0",
     "psr/http-server-handler": "^1.0",
@@ -52,6 +52,17 @@
     "lint": "composer run-script phpstan && composer run-script test",
     "test": "phpunit",
     "phpstan": "phpstan analyse --memory-limit=2G --debug"
+  },
+  "extra": {
+    "config-plugin-options": {
+      "source-directory": "config"
+    },
+    "config-plugin": {
+      "params": "params.php",
+      "di": "di.php",
+      "di-web": "di-web.php",
+      "events-console": "events-console.php"
+    }
   },
   "minimum-stability": "dev",
   "prefer-stable": true,
