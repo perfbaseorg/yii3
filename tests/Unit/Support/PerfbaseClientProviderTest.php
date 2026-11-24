@@ -34,8 +34,11 @@ class PerfbaseClientProviderTest extends TestCase
             }
         );
 
-        self::assertSame($expectedClient, $provider->getClient());
-        self::assertSame($expectedClient, $provider->getClient());
+        $first = $provider->getClient();
+        $second = $provider->getClient();
+
+        self::assertSame($expectedClient, $first);
+        self::assertSame($first, $second);
         self::assertSame(1, $created);
     }
 
